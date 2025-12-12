@@ -192,6 +192,7 @@ detect_network() {
   read -rp "Use detected interface '$DEFAULT_INTERFACE'? (y/n): " use_detected
   
   # Accept y, yes, Y, YES, or any non-empty string starting with n/N
+  use_detected="${use_detected:-y}"  # Default to 'y' if empty
   if [[ "${use_detected,,}" =~ ^n ]]; then
     warn "Available interfaces:"
     ip -br addr show
@@ -427,28 +428,21 @@ outputs:
         - http:
             extended: yes
         - dns:
-        - mdns:
         - tls:
             extended: yes
         - files:
             force-magic: no
         - smtp:
-        - websocket
         - ftp
         - rdp
         - nfs
         - smb:
         - tftp
-        - ike
         - dcerpc
         - krb5
-        - bittorrent-dht
         - snmp
         - rfb
         - sip
-        - quic
-        - ldap
-        - pop3
         - arp:
             enabled: no
         - dhcp:
@@ -457,7 +451,6 @@ outputs:
         - ssh
         - mqtt:
         - http2
-        - doh2
         - pgsql:
             enabled: no
         - stats:
@@ -472,7 +465,7 @@ outputs:
   - pcap-log:
       enabled: no
       filename: log.pcap
-      limit: 1000 MiB
+      limit: 1000MB
       max-files: 2000
       compression: none
       mode: normal
@@ -679,19 +672,19 @@ app-layer:
       libhtp:
          default-config:
            personality: IDS
-           request-body-limit: 100 KiB
-           response-body-limit: 100 KiB
-           request-body-minimal-inspect-size: 32 KiB
-           request-body-inspect-window: 4 KiB
-           response-body-minimal-inspect-size: 40 KiB
-           response-body-inspect-window: 16 KiB
+           request-body-limit: 100KB
+           response-body-limit: 100KB
+           request-body-minimal-inspect-size: 32KB
+           request-body-inspect-window: 4KB
+           response-body-minimal-inspect-size: 40KB
+           response-body-inspect-window: 16KB
            response-body-decompress-layer-limit: 2
            http-body-inline: auto
            swf-decompression:
              enabled: no
              type: both
-             compress-depth: 100 KiB
-             decompress-depth: 100 KiB
+             compress-depth: 100KB
+             decompress-depth: 100KB
          server-config:
     modbus:
       enabled: no
@@ -785,7 +778,7 @@ host-os-policy:
   windows2k3: []
 
 defrag:
-  memcap: 32 MiB
+  memcap: 32MB
   hash-size: 65536
   trackers: 65535
   max-frags: 65535
@@ -793,7 +786,7 @@ defrag:
   timeout: 60
 
 flow:
-  memcap: 128 MiB
+  memcap: 128MB
   hash-size: 65536
   prealloc: 10000
   emergency-recovery: 30
@@ -839,15 +832,15 @@ flow-timeouts:
     emergency-bypassed: 50
 
 stream:
-  memcap: 64 MiB
+  memcap: 64MB
   checksum-validation: yes
   inline: auto
   reassembly:
     urgent:
       policy: oob
       oob-limit-policy: drop
-    memcap: 256 MiB
-    depth: 1 MiB
+    memcap: 256MB
+    depth: 1MB
     toserver-chunk-size: 2560
     toclient-chunk-size: 2560
     randomize-chunk-size: yes
@@ -855,7 +848,7 @@ stream:
 host:
   hash-size: 4096
   prealloc: 1000
-  memcap: 32 MiB
+  memcap: 32MB
 
 decoder:
   teredo:
@@ -882,7 +875,7 @@ detect:
     default: mpm
   thresholds:
     hash-size: 16384
-    memcap: 16 MiB
+    memcap: 16MB
   profiling:
     rules:
       enabled: yes
@@ -1478,9 +1471,12 @@ configure_suricata() {
     info "Updated HOME_NET to: $NETWORK"
   fi
   
-  # Update af-packet interface - use more precise pattern
+  # Update all interface references (af-packet, pcap, pfring, netmap)
   if [ -n "$DEFAULT_INTERFACE" ]; then
-    # Find af-packet section and update interface line
+    # Update all hardcoded eth0 references to detected interface
+    sed -i "s|interface: eth0|interface: $DEFAULT_INTERFACE|g" "$SURICATA_YAML"
+    
+    # Also update af-packet section specifically (in case it's not eth0)
     local in_afpacket=0
     local tmp_yaml
     tmp_yaml=$(mktemp) || { err "Failed to create temp file"; return 1; }
@@ -1492,7 +1488,7 @@ configure_suricata() {
         # Exit section on top-level key or next list item
         if echo "$line" | grep -qE "^[a-zA-Z]" || (echo "$line" | grep -qE "^[ \t]*-[ \t]+[a-zA-Z]" && ! echo "$line" | grep -qE "^[ \t]*-[ \t]*af-packet:"); then
           in_afpacket=0
-        elif echo "$line" | grep -qE "^[ \t]*interface:"; then
+        elif echo "$line" | grep -qE "^[ \t]*interface:" && ! echo "$line" | grep -q "$DEFAULT_INTERFACE"; then
           line=$(echo "$line" | sed "s|^\([ \t]*interface:\).*|\1 $DEFAULT_INTERFACE|")
         fi
       fi
@@ -1560,6 +1556,11 @@ start_suricata() {
   mkdir -p /var/log/suricata
   chmod 755 /var/log/suricata
   chown suricata:suricata /var/log/suricata 2>/dev/null || true
+  
+  # Ensure unix socket directory exists
+  mkdir -p /var/run/suricata
+  chmod 755 /var/run/suricata
+  chown suricata:suricata /var/run/suricata 2>/dev/null || chmod 777 /var/run/suricata 2>/dev/null || true
   
   # Check if interface exists and is up
   if [ -n "$DEFAULT_INTERFACE" ]; then
@@ -2214,6 +2215,7 @@ select_rule_files() {
   done
   
   read -rp "Enter numbers (space-separated) to apply: " -a picks
+  picks=("${picks[@]}")  # Ensure picks is initialized as array
   local chosen=()
   for p in "${picks[@]}"; do
     # Validate input is a number and within range
@@ -2387,6 +2389,17 @@ complete_installation() {
         { print }
       ' "$SURICATA_YAML" > "$tmp_yaml"
       mv "$tmp_yaml" "$SURICATA_YAML"
+    fi
+    
+    # Comment out rule-files section if it's empty (Suricata 6.0.1 doesn't accept empty rule-files)
+    # Check if rule-files section exists and is empty
+    if grep -q "^rule-files:" "$SURICATA_YAML" 2>/dev/null; then
+      # Check if there are any rule entries after rule-files:
+      if ! sed -n '/^rule-files:/,/^[a-zA-Z]/p' "$SURICATA_YAML" | grep -qE "^[ \t]*-[ \t]+"; then
+        # Empty rule-files section - comment it out
+        sed -i 's|^rule-files:|#rule-files:|g' "$SURICATA_YAML"
+        info "Commented out empty rule-files section (Suricata 6.0.1 requires non-empty list)"
+      fi
     fi
     
     info "Cleared all rules from YAML (no rules applied)"
@@ -2638,4 +2651,3 @@ EOF
 
 require_root
 main_menu
-
