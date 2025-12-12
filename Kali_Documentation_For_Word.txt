@@ -1,0 +1,711 @@
+SURICATA AUTOMATION SETUP FOR KALI LINUX
+==========================================
+
+COMPREHENSIVE DOCUMENTATION FOR KALI_SETUP.SH
+
+Table of Contents
+-----------------
+1. Overview
+2. Features
+3. Requirements
+4. Installation
+5. Usage Guide
+6. Menu Options
+7. Configuration Details
+8. Git Repository Setup
+9. File Locations
+10. Log Files
+11. Troubleshooting
+12. Testing IDS Functionality
+13. Kali Linux-Specific Notes
+14. Script Functions Reference
+15. Code Flow Diagrams
+16. Security Considerations
+17. Quick Reference
+
+
+1. OVERVIEW
+===========
+
+Kali_setup.sh is a comprehensive bash script designed specifically for Kali Linux systems to automate Suricata IDS/IPS installation, configuration, and rule management. The script provides an interactive menu-driven interface that simplifies the entire process of setting up and managing Suricata on Kali Linux.
+
+The script handles:
+- Complete Suricata installation with proper configuration
+- Network interface detection and configuration
+- Rule management from GitHub repositories
+- YAML configuration management
+- Logging setup and verification
+- Service management
+
+The script automatically selects between primary and demo repositories based on provided Git credentials.
+
+
+2. FEATURES
+===========
+
+Key Features:
+- Automated Installation: Installs Suricata and all required dependencies automatically
+- Network Detection: Automatically detects network interface and IP configuration
+- Repository Management: Handles Kali Linux repository setup (skips Debian backports)
+- Rule Management: Provides flexible options for applying, updating, and managing IDS rules
+- YAML Configuration: Automatically configures Suricata YAML with proper syntax
+- Service Management: Handles Suricata service startup, restart, and status checks
+- Git Integration: Supports both primary and demo rule repositories with credential management
+- Error Handling: Comprehensive error detection and troubleshooting assistance
+- YAML Syntax Fixing: Automatically fixes common YAML syntax errors
+- Rule Categorization: Groups rules by category automatically
+- Clean State Management: Ensures clean installation with no default rules
+
+
+3. REQUIREMENTS
+==============
+
+Operating System:
+- Kali Linux (all recent versions)
+
+Privileges:
+- Root access (run with sudo)
+
+Network:
+- Active network connection
+
+Dependencies:
+The script will automatically install required packages:
+- git
+- software-properties-common
+- apt-transport-https
+- curl
+- jq
+- lsb-release
+
+
+4. INSTALLATION
+===============
+
+Step 1: Download the Script
+---------------------------
+Ensure you have the Kali_setup.sh file in your working directory.
+
+Step 2: Make it Executable
+--------------------------
+chmod +x Kali_setup.sh
+
+Step 3: Run as Root
+-------------------
+sudo ./Kali_setup.sh
+
+The script will:
+1. Check for root privileges
+2. Prompt for Git credentials (optional)
+3. Display the main menu
+
+
+5. USAGE GUIDE
+==============
+
+Initial Setup
+-------------
+When you first run the script, you'll be prompted for Git credentials:
+
+Enter git credentials (leave blank to use demo repository):
+  Username: [your_username or leave blank]
+  Password/PAT: [your_password/PAT or leave blank]
+
+Options:
+- With Credentials: Access to primary repository (Suricata_Automation)
+- Without Credentials: Uses demo repository (Demo_Rules) - read-only access
+
+Environment Variables (Optional)
+---------------------------------
+You can set credentials as environment variables:
+
+export GIT_USERNAME="your_username"
+export GIT_PASSWORD="your_password_or_pat"
+sudo ./Kali_setup.sh
+
+Or use a Git token:
+
+export GIT_TOKEN="your_personal_access_token"
+sudo ./Kali_setup.sh
+
+
+6. MENU OPTIONS
+===============
+
+Main Menu
+---------
+Main Menu (using repo: <repository_url>)
+ 1) Complete installation (setup + clean rules)
+ 2) Update ruleset (git pull + copy to /etc/suricata/rules + update YAML)
+ 3) Apply rules
+ 4) Remove Suricata completely
+ 5) Exit
+
+Option 1: Complete Installation
+--------------------------------
+Performs a full installation of Suricata:
+
+What it does:
+- Detects network configuration (interface, IP, network)
+- Installs Suricata and dependencies
+- Configures Suricata YAML file
+- Sets up logging outputs (fast.log and eve.json)
+- Starts Suricata service
+- Removes all default rules (clean state)
+
+Important Notes:
+- After complete installation, Suricata runs with no rules applied
+- Use Option 3 to apply rules after installation
+- Network interface detection is automatic but can be overridden
+
+Option 2: Update Ruleset
+-------------------------
+Updates the rule repository:
+
+What it does:
+- Pulls latest changes from the configured repository
+- Does NOT apply rules automatically
+- Updates local repository cache
+
+Usage:
+- Run this option to get latest rules from repository
+- Then use Option 3 to apply the updated rules
+
+Option 3: Apply Rules
+----------------------
+Provides sub-menu for rule management:
+
+Apply Rules Menu:
+ 1) All categories (apply all .rules)
+ 2) Specific categories (multi-select .rules)
+ 3) Exclusive site (per category)
+ 4) Clean applied ruleset (remove all .rules)
+ 5) Back
+
+Sub-option 1: All Categories
+- Applies ALL .rules files from the repository
+- Groups rules by category automatically
+- Updates YAML configuration
+- Restarts Suricata
+
+Sub-option 2: Specific Categories
+- Shows list of available rule files
+- Select multiple files by entering numbers (e.g., "1 3 5")
+- Applies only selected rules
+- Updates YAML automatically
+
+Sub-option 3: Exclusive Site (per category)
+- Lists category directories
+- Select a category
+- Shows site-specific rules within that category
+- Multi-select site rules
+- Rules are grouped into category files (e.g., games.rules)
+
+Sub-option 4: Clean Applied Ruleset
+- Removes all applied rules
+- Clears rule-files section in YAML
+- Does NOT uninstall Suricata
+- Restarts Suricata with no rules
+
+Option 4: Remove Suricata Completely
+-------------------------------------
+Completely removes Suricata:
+
+What it does:
+- Stops and disables Suricata service
+- Uninstalls Suricata package
+- Removes all configuration files
+- Removes all log files
+- Removes all rules
+- Complete cleanup
+
+Warning: This is irreversible. All Suricata data will be lost.
+
+Option 5: Exit
+--------------
+Exits the script.
+
+
+7. CONFIGURATION DETAILS
+=========================
+
+Network Detection
+-----------------
+The script automatically detects:
+- Default network interface (from routing table)
+- IP address of the interface
+- Network CIDR notation
+
+You can:
+- Accept the detected values (default)
+- Manually specify an interface if needed
+
+Suricata Configuration
+-----------------------
+The script configures:
+- HOME_NET: Detected network CIDR (e.g., 192.168.75.0/24)
+- Interface: Detected or specified network interface (e.g., eth0, ens33)
+- Logging: Fast log and EVE JSON log outputs enabled
+- Rule Path: /etc/suricata/rules
+- YAML Compatibility: Compatible with Suricata versions available in Kali repositories
+
+YAML Template Features
+----------------------
+The script installs a comprehensive YAML template with:
+- Network Configuration: HOME_NET and EXTERNAL_NET variables
+- Logging Outputs: Fast log and EVE JSON log configured
+- App Layer Protocols: HTTP, DNS, TLS, SMTP, FTP, RDP, SSH, and more
+- Performance Tuning: Memory caps, flow timeouts, threading
+- Capture Methods: af-packet, pcap, pfring, netmap support
+- Rule Management: Empty rule-files section ready for rules
+
+Rule Management
+---------------
+Rules are organized by category:
+- Rules from the same category directory are grouped into {category}.rules
+- Rules are copied to /etc/suricata/rules/
+- YAML rule-files section is automatically updated
+- Suricata service is restarted after rule changes
+
+
+8. GIT REPOSITORY SETUP
+========================
+
+Primary Repository
+------------------
+URL: https://github.com/atharva8303/Suricata_Automation
+- Requires Git credentials (username/password or PAT)
+- Set via environment variables or prompted during execution
+- Contains full rule sets and configurations
+
+Demo Repository
+---------------
+URL: https://github.com/atharva8303/Demo_Rules
+- Public repository, no credentials required
+- Used as fallback if primary repository is inaccessible
+- Contains sample rules for testing
+
+Setting Credentials
+-------------------
+Method 1: Environment Variables
+export GIT_USERNAME="your_username"
+export GIT_PASSWORD="your_password_or_pat"
+sudo ./Kali_setup.sh
+
+Method 2: Interactive Prompt
+sudo ./Kali_setup.sh
+# Script will prompt for credentials
+# Leave blank to use demo repository
+
+
+9. FILE LOCATIONS
+=================
+
+Configuration Files:
+- /etc/suricata/suricata.yaml - Main Suricata configuration
+- /etc/suricata/suricata.yaml.bak - Backup of original configuration
+
+Rules Directory:
+- /etc/suricata/rules/ - Applied rules location
+
+Log Directory:
+- /var/log/suricata/ - All log files
+
+Work Directory:
+- /tmp/suricata_rules/ - Temporary repository clone location
+
+Suricata Data:
+- /var/lib/suricata/ - Suricata data and cache files
+
+
+10. LOG FILES
+=============
+
+Fast Log
+--------
+Location: /var/log/suricata/fast.log
+Purpose: Alert log (similar to Snort's fast.log)
+Format: Line-based alert log
+Usage: sudo tail -f /var/log/suricata/fast.log
+
+EVE JSON Log
+------------
+Location: /var/log/suricata/eve.json
+Purpose: Structured JSON event log
+Format: JSON format with structured data
+Usage: sudo tail -f /var/log/suricata/eve.json | jq 'select(.event_type=="alert")'
+
+Suricata Log
+------------
+Location: /var/log/suricata/suricata.log
+Purpose: Suricata daemon log
+Format: Standard log format
+Usage: sudo tail -f /var/log/suricata/suricata.log
+
+
+11. TROUBLESHOOTING
+====================
+
+Suricata Won't Start
+--------------------
+1. Check configuration syntax:
+   sudo suricata -T -c /etc/suricata/suricata.yaml
+
+2. Check service status:
+   sudo systemctl status suricata
+
+3. Check logs:
+   journalctl -u suricata -n 100
+   tail -f /var/log/suricata/suricata.log
+
+Common Issues:
+- YAML syntax errors: Script automatically fixes these, but check logs if issues persist
+- Interface not found: Verify interface exists with "ip link show"
+- Permission issues: Ensure log directory is writable
+
+Logs Not Appearing
+------------------
+1. Check log file permissions:
+   ls -la /var/log/suricata/
+
+2. Ensure Suricata is running:
+   sudo systemctl status suricata
+
+3. Check if logs are configured:
+   grep -A 5 "fast:" /etc/suricata/suricata.yaml
+   grep -A 5 "eve-log:" /etc/suricata/suricata.yaml
+
+Rules Not Applied
+-----------------
+1. Verify rules exist:
+   ls -la /etc/suricata/rules/
+
+2. Check YAML rule-files section:
+   grep -A 10 "rule-files:" /etc/suricata/suricata.yaml
+
+3. Restart Suricata:
+   sudo systemctl restart suricata
+
+Repository Access Issues
+------------------------
+If using credentials:
+- Verify username and password/PAT are correct
+- Check if repository is accessible: git ls-remote <repo_url>
+
+If using demo repository:
+- Demo repository is public, no credentials needed
+- If access fails, check internet connection
+
+
+12. TESTING IDS FUNCTIONALITY
+==============================
+
+After applying rules, test your IDS:
+
+Test with Known Malicious Content
+----------------------------------
+curl http://testmynids.org/uid/index.html
+
+View Alerts
+-----------
+sudo tail -f /var/log/suricata/fast.log
+
+View JSON Events
+----------------
+sudo tail -f /var/log/suricata/eve.json | jq 'select(.event_type=="alert")'
+
+Additional Test Commands
+------------------------
+# Check Suricata status
+sudo systemctl status suricata
+
+# Restart Suricata
+sudo systemctl restart suricata
+
+# View recent alerts
+sudo tail -n 50 /var/log/suricata/fast.log
+
+# Count total alerts
+sudo wc -l /var/log/suricata/fast.log
+
+# Test configuration
+sudo suricata -T -c /etc/suricata/suricata.yaml
+
+
+13. KALI LINUX-SPECIFIC NOTES
+==============================
+
+Repository Handling
+-------------------
+- Kali Linux: Uses default Kali repositories (skips Debian backports)
+- Suricata should be available in Kali's default repositories
+- The script detects Kali and skips backports repository setup
+
+Suricata Version
+----------------
+- Uses Suricata version available in Kali repositories
+- YAML configuration is compatible with standard Suricata versions
+- Size formats use standard units (MiB, KiB, etc.)
+
+Differences from Debian Setup
+------------------------------
+Key differences in Kali setup:
+1. Repository: Uses Kali default repos (no backports)
+2. OS Detection: Specifically detects Kali and skips backports
+3. YAML Format: Uses MiB/KiB format (compatible with newer Suricata)
+4. Protocol Support: Includes additional protocols (mdns, websocket, doh2, quic, ldap, pop3, ike, bittorrent-dht)
+
+
+14. SCRIPT FUNCTIONS REFERENCE
+================================
+
+Core Functions
+-------------
+require_root()
+- Checks for root privileges
+- Exits if not running as root
+
+detect_network()
+- Detects network configuration
+- Gets default interface from routing table
+- Extracts IP address and network CIDR
+- Validates interface existence
+
+install_suricata_stack()
+- Installs Suricata and dependencies
+- Handles Kali-specific repository setup
+- Installs corrected YAML template
+
+configure_suricata()
+- Configures Suricata YAML
+- Updates HOME_NET with detected network
+- Configures interface in af-packet section
+- Sets up logging outputs
+
+start_suricata()
+- Starts Suricata service
+- Tests configuration before starting
+- Handles errors and provides diagnostics
+- Verifies service is running
+
+Rule Management Functions
+-------------------------
+apply_rule_files()
+- Applies selected rule files
+- Groups rules by category
+- Creates category rule files
+- Updates YAML configuration
+
+sync_rule_files_list()
+- Updates YAML rule-files section
+- Lists all .rules files in rules directory
+- Maintains proper YAML syntax
+
+reset_rules_dir()
+- Cleans rule directory
+- Removes all .rules files
+- Clears YAML rule-files section
+
+menu_apply_rules()
+- Interactive rule application menu
+- Provides multiple selection options
+- Handles rule application workflow
+
+YAML Management Functions
+-------------------------
+install_corrected_yaml_template()
+- Installs compatible YAML template
+- Creates backup of original
+- Sets proper permissions
+
+fix_yaml_syntax()
+- Fixes YAML syntax issues
+- Removes duplicate keys
+- Fixes structure problems
+- Handles indentation issues
+
+validate_yaml_syntax()
+- Validates YAML configuration
+- Shows problematic lines
+- Provides error context
+
+configure_logging()
+- Configures logging outputs
+- Enables fast.log and eve.json
+- Updates file paths
+- Validates configuration
+
+remove_duplicate_keys()
+- Removes duplicate YAML keys
+- Handles fast/eve-log sections
+- Prevents configuration conflicts
+
+fix_yaml_structure_issues()
+- Fixes YAML structure problems
+- Handles comment-related issues
+- Fixes indentation problems
+
+
+15. CODE FLOW DIAGRAMS
+=======================
+
+Main Flow
+---------
+START: Kali_setup.sh
+    |
+    v
+require_root() - Check if root user
+    |
+    v
+main_menu()
+    |
+    v
+prompt_credentials() - Ask for Git username/PAT
+    |
+    v
+detect_repo() - Check credentials, select primary or demo
+    |
+    v
+fetch_repo() - Clone/Pull repository
+    |
+    v
+MAIN MENU
+    |
+    +-- Option 1: Complete installation
+    +-- Option 2: Update ruleset
+    +-- Option 3: Apply rules
+    +-- Option 4: Remove Suricata
+    +-- Option 5: Exit
+
+Complete Installation Flow
+--------------------------
+Option 1 Selected
+    |
+    v
+detect_network() - Detect interface, IP, network
+    |
+    v
+install_suricata_stack() - Install Suricata and dependencies
+    |
+    v
+configure_suricata() - Configure YAML
+    |
+    v
+reset_rules_dir() - Remove default rules
+    |
+    v
+start_suricata() - Start service
+    |
+    v
+Installation Complete (no rules applied)
+
+Apply Rules Flow
+----------------
+Option 3 Selected
+    |
+    v
+menu_apply_rules() - Show rule menu
+    |
+    v
+User selects rule option
+    |
+    v
+apply_rule_files() - Process selected rules
+    |
+    v
+Group rules by category
+    |
+    v
+Create category rule files
+    |
+    v
+sync_rule_files_list() - Update YAML
+    |
+    v
+Restart Suricata
+    |
+    v
+Rules Applied Successfully
+
+
+16. SECURITY CONSIDERATIONS
+============================
+
+Credentials Security
+--------------------
+- Git credentials are not logged or displayed
+- Credentials handled securely in memory
+- Environment variables can be used for automation
+
+Permissions
+-----------
+- Script requires root access for system configuration
+- Log files may contain sensitive network information
+- Ensure proper file permissions on configuration and log files
+
+Backups
+-------
+- YAML files are automatically backed up before modifications
+- Backup files: suricata.yaml.bak
+- Original configurations can be restored if needed
+
+Validation
+----------
+- All YAML changes are validated before applying
+- Configuration tested before service start
+- Error recovery mechanisms in place
+
+
+17. QUICK REFERENCE
+===================
+
+Main Menu
+---------
+1. Complete Installation → Setup + Clean Rules
+2. Update Ruleset → Git Pull Only
+3. Apply Rules → All / Specific / Site-specific
+4. Remove Suricata → Complete Uninstall
+5. Exit
+
+File Locations
+--------------
+Config: /etc/suricata/suricata.yaml
+Rules: /etc/suricata/rules/
+Logs: /var/log/suricata/
+Backup: /etc/suricata/suricata.yaml.bak
+
+Common Commands
+---------------
+# Test configuration
+sudo suricata -T -c /etc/suricata/suricata.yaml
+
+# Check service status
+sudo systemctl status suricata
+
+# View alerts
+sudo tail -f /var/log/suricata/fast.log
+
+# View JSON events
+sudo tail -f /var/log/suricata/eve.json | jq 'select(.event_type=="alert")'
+
+# Restart Suricata
+sudo systemctl restart suricata
+
+# Check logs
+journalctl -u suricata -n 100
+
+Test IDS
+--------
+curl http://testmynids.org/uid/index.html
+
+
+END OF DOCUMENTATION
+====================
+
+This documentation covers all aspects of Kali_setup.sh script for Suricata automation on Kali Linux systems.
+
+For additional support or questions, refer to:
+- Suricata official documentation: https://docs.suricata.io
+- Script logs: /var/log/suricata/suricata.log
+- Configuration test: suricata -T -c /etc/suricata/suricata.yaml
+
